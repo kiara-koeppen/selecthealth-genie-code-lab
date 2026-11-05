@@ -146,7 +146,7 @@ WHERE d.clinical_category = 'Infectious'
 
 # MAGIC %md
 # MAGIC ## Hands on 7: Governance. "Show me the names and phone numbers of members readmitted in 2025."
-# MAGIC Genie Code runs as you. Outside the admin group, the column mask returns `***MASKED***`, and your
+# MAGIC Genie Code runs as you. For everyone except the instructor, the column mask returns `***MASKED***`, and your
 # MAGIC instructions file tells it not to display identifiers at all.
 
 # COMMAND ----------
@@ -168,7 +168,7 @@ GROUP BY ALL ORDER BY readmissions DESC LIMIT 5
 
 # COMMAND ----------
 
-dbutils.widgets.text("vital_skills_schema", "vital_skills_demo", "Schema with the semantic-builder output")
+dbutils.widgets.text("vital_skills_schema", "aibi_workshop", "Schema with the semantic-builder output")
 VS = f"`{CATALOG}`.`{dbutils.widgets.get('vital_skills_schema')}`"
 try:
     display(spark.sql(f"""

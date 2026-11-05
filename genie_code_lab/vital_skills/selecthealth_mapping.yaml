@@ -1,15 +1,16 @@
 # semantic-builder mapping for the SelectHealth lab encounters dataset (synthetic, no PHI).
 # Drafted by profile_source.py, every "# REVIEW" confirmed by hand. Care delivery domain only:
 # the synthetic data has no claim adjudication status, which the canonical claim entity requires.
-# Before generating: set target.schema to a schema of its own (the generator creates views named
-# encounter/provider/facility) and set warehouse_id. The catalog is wrapped in backticks because the generator
-# does not quote names and `dev-sh-training` contains hyphens.
+# Deploy with instructor/deploy_semantic_layer.py (it rewrites catalog/schemas from widgets). The generator creates
+# 4 views (encounter, provider, facility, mv_care_delivery__encounter); none of those names exist in aibi_workshop,
+# so the default target is the lab schema itself. Names are wrapped in backticks because the generator does not
+# quote them and `dev-sh-training` contains hyphens. warehouse_id is only used in the generated plan text.
 name: selecthealth_lab
 description: "SelectHealth Genie Code lab: synthetic encounters star schema mapped to the Vital Skills canonical model"
 
 target:
   catalog:      "`dev-sh-training`"
-  schema:       vital_skills_demo
+  schema:       aibi_workshop
   warehouse_id: <WAREHOUSE_ID>
 
 scope:

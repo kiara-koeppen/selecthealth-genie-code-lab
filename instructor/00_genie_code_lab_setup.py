@@ -9,7 +9,7 @@
 # MAGIC | Object | Why it exists in the lab |
 # MAGIC |---|---|
 # MAGIC | `claims_extract_raw` | A deliberately **undocumented, messy** extract (cryptic column names, coded values, dirty rows). Hands on 1 profiles and documents it; Hands on 2 and 4 clean it; Hands on 5 checks it with the data quality skill. |
-# MAGIC | `dim_member` | Synthetic member contact table with a **column mask** on name and phone. Hands on 7 shows Genie Code inheriting your Unity Catalog permissions. |
+# MAGIC | `dim_member` | Synthetic member contact table with a **column mask** on name and phone: only the instructor who runs this notebook sees real values. Hands on 7 shows Genie Code inheriting your Unity Catalog permissions. |
 # MAGIC | `readmission_rate_official()` | SelectHealth's official readmission definition as a Unity Catalog SQL function. Optional: add it to Genie Code as an MCP tool (Hands on 6 tip) so the metric is computed the same way every time. The Vital Skills metric view in Hands on 6 returns the same rate. |
 # MAGIC
 # MAGIC **Important:** `claims_extract_raw` intentionally ships with **no table description, no column comments,
@@ -21,18 +21,23 @@
 # MAGIC %md
 # MAGIC ## Parameters
 # MAGIC Every value is a widget. Point `catalog` and `schema` at the schema where the base encounters tables live.
-# MAGIC `admin_group` is the group that is allowed to see unmasked member contact columns (attendees should NOT be in it).
+# MAGIC `unmasked_user` is the one user who sees unmasked member contact columns (blank = you, the person running this).
+# MAGIC It's a user rather than a group so a non-admin instructor can run this without creating a group.
+# MAGIC
+# MAGIC **Permissions you need** (no workspace admin required): `USE CATALOG` on the catalog and `USE SCHEMA`,
+# MAGIC `CREATE TABLE`, `CREATE FUNCTION`, `SELECT` on the schema. The optional grants cell also needs you to own the
+# MAGIC schema (or have `MANAGE`); if you don't, it prints the exact statements to send to an admin.
 
 # COMMAND ----------
 
 dbutils.widgets.text("catalog", "dev-sh-training", "Catalog with the base encounters tables")
 dbutils.widgets.text("schema", "aibi_workshop", "Schema with the base encounters tables")
-dbutils.widgets.text("admin_group", "sh_genie_code_admins", "Group allowed to see unmasked member PII")
+dbutils.widgets.text("unmasked_user", "", "User who sees unmasked member PII (blank = you)")
 dbutils.widgets.text("seed", "42", "Random seed for dirty-row injection")
 
 CATALOG = dbutils.widgets.get("catalog")
 SCHEMA = dbutils.widgets.get("schema")
-ADMIN_GROUP = dbutils.widgets.get("admin_group")
+UNMASKED_USER = dbutils.widgets.get("unmasked_user").strip() or spark.sql("SELECT current_user()").first()[0]
 SEED = int(dbutils.widgets.get("seed"))
 
 # Backtick-quote names so hyphenated catalogs (for example `dev-sh-training`) work everywhere.
@@ -128,7 +133,7 @@ print(f"claims_extract_raw rows: {spark.table(f'{FQ}.claims_extract_raw').count(
 
 # MAGIC %md
 # MAGIC ## 2. `dim_member`: synthetic contact table with a column mask
-# MAGIC One row per synthetic member. `member_name` and `phone_number` are masked for anyone outside `admin_group`,
+# MAGIC One row per synthetic member. `member_name` and `phone_number` are masked for everyone except `unmasked_user`,
 # MAGIC so attendees (and Genie Code acting as them) see `***MASKED***`. Fully documented with comments and keys.
 
 # COMMAND ----------
@@ -150,16 +155,16 @@ members.write.mode("overwrite").option("overwriteSchema", "true").saveAsTable(f"
 
 spark.sql(f"""CREATE OR REPLACE FUNCTION {FQ}.mask_member_pii(val STRING)
 RETURNS STRING
-COMMENT 'Column mask for synthetic member PII. Returns the real value only for members of the {ADMIN_GROUP} group; everyone else sees ***MASKED***.'
-RETURN CASE WHEN is_account_group_member('{ADMIN_GROUP}') THEN val ELSE '***MASKED***' END""")
+COMMENT 'Column mask for synthetic member PII. Returns the real value only for the lab instructor ({UNMASKED_USER}); everyone else sees ***MASKED***.'
+RETURN CASE WHEN current_user() = '{UNMASKED_USER}' THEN val ELSE '***MASKED***' END""")
 spark.sql(f"ALTER TABLE {FQ}.dim_member ALTER COLUMN member_name SET MASK {FQ}.mask_member_pii")
 spark.sql(f"ALTER TABLE {FQ}.dim_member ALTER COLUMN phone_number SET MASK {FQ}.mask_member_pii")
 
-spark.sql(f"COMMENT ON TABLE {FQ}.dim_member IS 'Synthetic member contact dimension (no real PHI). One row per member_id. member_name and phone_number carry a column mask: only the {ADMIN_GROUP} group sees real values. Joins to fact_encounters.patient_id.'")
+spark.sql(f"COMMENT ON TABLE {FQ}.dim_member IS 'Synthetic member contact dimension (no real PHI). One row per member_id. member_name and phone_number carry a column mask: only the lab instructor sees real values. Joins to fact_encounters.patient_id.'")
 member_comments = {
     "member_id": "Synthetic member identifier. Primary key. Matches fact_encounters.patient_id.",
-    "member_name": "Synthetic member full name. Masked by mask_member_pii for anyone outside the admin group.",
-    "phone_number": "Synthetic member phone number (555 exchange). Masked by mask_member_pii for anyone outside the admin group.",
+    "member_name": "Synthetic member full name. Masked by mask_member_pii for everyone except the lab instructor.",
+    "phone_number": "Synthetic member phone number (555 exchange). Masked by mask_member_pii for everyone except the lab instructor.",
     "age_at_last_encounter": "Member age in years at one of their encounters.",
     "sex": "Member sex as recorded on the encounter: M or F.",
 }
@@ -258,19 +263,27 @@ print(f"member_encounter_detail rows: {spark.table(f'{FQ}.member_encounter_detai
 # COMMAND ----------
 
 dbutils.widgets.text("training_group", "", "Attendee group to grant (leave blank to skip)")
-TRAINING_GROUP = dbutils.widgets.get("training_group")
+TRAINING_GROUP = dbutils.widgets.get("training_group").strip()
 if TRAINING_GROUP:
-    for stmt in [
+    stmts = [
         f"GRANT USE CATALOG ON CATALOG `{CATALOG}` TO `{TRAINING_GROUP}`",
         f"GRANT USE SCHEMA, SELECT, CREATE TABLE, CREATE FUNCTION, MODIFY ON SCHEMA {FQ} TO `{TRAINING_GROUP}`",
         f"GRANT EXECUTE ON FUNCTION {FQ}.readmission_rate_official TO `{TRAINING_GROUP}`",
-    ]:
-        spark.sql(stmt)
-        print("OK:", stmt)
+    ]
+    failed = []
+    for stmt in stmts:
+        try:
+            spark.sql(stmt)
+            print("OK:", stmt)
+        except Exception as e:
+            failed.append(stmt)
+            print("COULD NOT RUN:", stmt, "\n   ", str(e).splitlines()[0][:200])
+    if failed:
+        # Not fatal: on Oct 1 attendees already had access to this schema. Check it with a non-admin attendee, and if
+        # they can't read/create, send these statements to someone who owns the catalog and schema.
+        print("\nAsk the schema/catalog owner to run:\n" + ";\n".join(failed) + ";")
     # member_encounter_detail is synthetic, but it plays the role of raw PHI in the demo. The schema-level SELECT
-    # above makes it readable to attendees; if you want the demo to model "raw is locked, only the de-identified
-    # view is shared", create it in a separate schema the training group can't read.
-    print("Note: member_encounter_detail is readable via the schema grant (fine for synthetic data).")
+    # above makes it readable to attendees, which is fine for synthetic data.
 else:
     print("training_group blank, skipping grants.")
 
