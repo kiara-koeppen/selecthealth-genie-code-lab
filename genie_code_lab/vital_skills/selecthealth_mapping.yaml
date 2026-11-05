@@ -1,0 +1,59 @@
+# semantic-builder mapping for the SelectHealth lab encounters dataset (synthetic, no PHI).
+# Drafted by profile_source.py, every "# REVIEW" confirmed by hand. Care delivery domain only:
+# the synthetic data has no claim adjudication status, which the canonical claim entity requires.
+# Before generating: set target.schema to a schema of its own (the generator creates views named
+# encounter/provider/facility) and set warehouse_id. The catalog is wrapped in backticks because the generator
+# does not quote names and `dev-sh-training` contains hyphens.
+name: selecthealth_lab
+description: "SelectHealth Genie Code lab: synthetic encounters star schema mapped to the Vital Skills canonical model"
+
+target:
+  catalog:      "`dev-sh-training`"
+  schema:       vital_skills_demo
+  warehouse_id: <WAREHOUSE_ID>
+
+scope:
+  domains: [care_delivery]
+
+entities:
+
+  encounter:
+    source: "`dev-sh-training`.aibi_workshop.fact_encounters"
+    grain_keys: [encounter_id]
+    fields:
+      encounter_id: encounter_id
+      patient_id: patient_id
+      encounter_date: admit_date
+      los_days: length_of_stay_days
+      facility_id: facility_id
+      provider_id: provider_id
+      # Index admission = inpatient stay where the patient survived (deaths can't be readmitted).
+      is_index_admission: "encounter_type = 'Inpatient' AND mortality_flag = 0"
+      # Source flags readmission on the index stay; restricted to index admissions so the rate's
+      # numerator is always a subset of its denominator.
+      is_readmission_30day: "CAST(readmitted_30d AS BOOLEAN) AND encounter_type = 'Inpatient' AND mortality_flag = 0"
+    enums:
+      encounter_class:
+        source_column: encounter_type
+        map:
+          "Inpatient": inpatient
+          "Outpatient": outpatient
+          "Emergency": emergency
+        default: other
+
+  provider:
+    source: "`dev-sh-training`.aibi_workshop.dim_provider"
+    grain_keys: [provider_id]
+    fields:
+      provider_id: provider_id
+      provider_name: provider_name
+      specialty: specialty
+      npi: npi
+
+  facility:
+    source: "`dev-sh-training`.aibi_workshop.dim_facility"
+    grain_keys: [facility_id]
+    fields:
+      facility_id: facility_id
+      facility_name: facility_name
+      region: region

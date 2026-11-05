@@ -1,0 +1,60 @@
+{
+  "name": "Encounter DQ autopilot (Genie Code in Jobs demo)",
+  "description": "Genie Code lab demo. Task 1 runs the SelectHealth DQ sign-off checks; if any BLOCKER fails, a Genie Code task (added in the Jobs UI) investigates and drafts fix code. Paused.",
+  "schedule": {
+    "quartz_cron_expression": "0 0 6 ? * MON-FRI",
+    "timezone_id": "America/Denver",
+    "pause_status": "PAUSED"
+  },
+  "max_concurrent_runs": 1,
+  "parameters": [
+    {
+      "name": "catalog",
+      "default": "dev-sh-training"
+    },
+    {
+      "name": "schema",
+      "default": "aibi_workshop"
+    },
+    {
+      "name": "table",
+      "default": "claims_extract_raw"
+    },
+    {
+      "name": "initials",
+      "default": "[INITIALS]"
+    }
+  ],
+  "environments": [
+    {
+      "environment_key": "default",
+      "spec": {
+        "client": "3"
+      }
+    }
+  ],
+  "tasks": [
+    {
+      "task_key": "run_dq",
+      "description": "Run the 8 SelectHealth DQ checks and publish task values.",
+      "notebook_task": {
+        "notebook_path": "/Workspace/<PATH_TO_GIT_FOLDER>/genie_code_lab/03_dq_autopilot_check"
+      },
+      "environment_key": "default"
+    },
+    {
+      "task_key": "has_blockers",
+      "description": "Only wake the agent when a BLOCKER check failed.",
+      "depends_on": [
+        {
+          "task_key": "run_dq"
+        }
+      ],
+      "condition_task": {
+        "op": "GREATER_THAN",
+        "left": "{{tasks.run_dq.values.blocker_failures}}",
+        "right": "0"
+      }
+    }
+  ]
+}
