@@ -67,8 +67,8 @@ instructor/                         ← instructor only
 3. **Lab objects:** run `instructor/00_genie_code_lab_setup.py` (defaults already point at
    `` `dev-sh-training`.aibi_workshop ``). Leave `unmasked_user` blank (you) and `apply_answer_key = no`. Set
    `training_group` only if you own the schema; otherwise the cell prints the grant statements to send to an owner.
-4. **Vital Skills:** create a Git folder from `https://github.com/databricks-industry-solutions/vital-skills` in your
-   home folder and share it with the attendee group as **Can Read**. Attendees register its `skills` subfolder under
+4. **Vital Skills:** create your own Git folder from `https://github.com/databricks-industry-solutions/vital-skills`
+   (needed by step 5). Attendees create their own in Hands on 6 and register its `skills` subfolder under
    Genie Code → Customizations → Add folder.
 5. **Metric view backup:** run `instructor/deploy_semantic_layer.py` with `vital_skills_folder` set. Expect ~15.1%
    standard vs ~14.5% naive. (Or deploy live in the session with the skill, and keep this as the fallback.)
@@ -78,7 +78,8 @@ instructor/                         ← instructor only
 
 ## Attendee setup (first 2 minutes of the session)
 Workspace → Create → Git folder → paste `https://github.com/kiara-koeppen/selecthealth-genie-code-lab` → Create.
-Everything they need is in `genie_code_lab/` inside it. Every notebook's widgets already default to
+Everything they need is in `genie_code_lab/` inside it. In Hands on 5 they register `genie_code_lab/skills` under
+Genie Code → Customizations → Add folder, and in Hands on 6 they add a second Git folder for Vital Skills. Every notebook's widgets already default to
 `` `dev-sh-training`.aibi_workshop ``.
 
 ## Configuration

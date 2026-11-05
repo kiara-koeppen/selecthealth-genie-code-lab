@@ -290,6 +290,39 @@ else:
 # COMMAND ----------
 
 # MAGIC %md
+# MAGIC ## Expected numbers for THIS dataset (copy these into your instructor notes)
+# MAGIC The workbook quotes approximate numbers from the staging dataset. Exact values depend on the data in this
+# MAGIC workspace, so this cell computes every number attendees will see, using the same rules as `99_answer_key`
+# MAGIC and the data quality skill.
+
+# COMMAND ----------
+
+expected = spark.sql(f"""
+WITH raw AS (SELECT * FROM {FQ}.claims_extract_raw),
+dated AS (SELECT *, try_to_date(adm_dt, 'yyyyMMdd') AS a, try_to_date(dsch_dt, 'yyyyMMdd') AS d FROM raw),
+first_enc AS (SELECT * FROM (SELECT *, row_number() OVER (PARTITION BY enc_id ORDER BY 1) AS rn FROM dated) WHERE rn = 1),
+silver AS (SELECT * FROM first_enc WHERE d >= a AND pyr_cd IN ('1','2','3','4'))
+SELECT 'Hands on 1: Medicare inpatient readmission %, deduplicated' AS check,
+       CAST((SELECT ROUND(100.0 * AVG(CASE WHEN rdmt_flg = 'Y' THEN 1 ELSE 0 END), 2)
+             FROM (SELECT DISTINCT * FROM raw) WHERE pyr_cd = '2' AND enc_typ = 'IP') AS STRING) AS value
+UNION ALL SELECT 'Hands on 1: Medicare inpatient encounters, deduplicated',
+       CAST((SELECT COUNT(*) FROM (SELECT DISTINCT * FROM raw) WHERE pyr_cd = '2' AND enc_typ = 'IP') AS STRING)
+UNION ALL SELECT 'claims_extract_raw rows', CAST((SELECT COUNT(*) FROM raw) AS STRING)
+UNION ALL SELECT 'Hands on 4: silver rows (answer key rules)', CAST((SELECT COUNT(*) FROM silver) AS STRING)
+UNION ALL SELECT 'Hands on 5 raw: duplicate encounter rows', CAST((SELECT COUNT(*) - COUNT(DISTINCT enc_id) FROM raw) AS STRING)
+UNION ALL SELECT 'Hands on 5 raw: discharge before admit', CAST((SELECT COUNT(*) FROM dated WHERE d < a) AS STRING)
+UNION ALL SELECT 'Hands on 5 raw: invalid payer code', CAST((SELECT COUNT(*) FROM raw WHERE pyr_cd NOT IN ('1','2','3','4')) AS STRING)
+UNION ALL SELECT 'Hands on 5 raw + silver: missing member id', CAST((SELECT COUNT(*) FROM raw WHERE mbr_id IS NULL) AS STRING)
+UNION ALL SELECT 'Hands on 5 raw: paid above charges (WARN)', CAST((SELECT COUNT(*) FROM raw WHERE pd_amt > chg_amt) AS STRING)
+UNION ALL SELECT 'Hands on 6: standard readmission % (index admissions)', CAST({FQ}.readmission_rate_official(NULL) AS STRING)
+UNION ALL SELECT 'Hands on 6: index admissions', CAST((SELECT COUNT(*) FROM {FQ}.fact_encounters WHERE encounter_type = 'Inpatient' AND mortality_flag = 0) AS STRING)
+UNION ALL SELECT 'Hands on 6: naive readmission % (all encounters)', CAST((SELECT ROUND(100.0 * AVG(readmitted_30d), 2) FROM {FQ}.fact_encounters) AS STRING)
+""")
+display(expected)
+
+# COMMAND ----------
+
+# MAGIC %md
 # MAGIC ## Answer key: fully document `claims_extract_raw` (dry runs and resets only)
 # MAGIC This is what "good" looks like at the end of Hands on 1. Do **not** run it before the session, or Hands on 1's
 # MAGIC "before" state disappears. Flip `apply_answer_key` to `yes` to run it.
