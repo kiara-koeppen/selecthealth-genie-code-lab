@@ -81,11 +81,15 @@ print(open(os.path.join(out_dir, "plan.md")).read())
 # MAGIC %md
 # MAGIC ## 3. Run the generated SQL
 # MAGIC Silver views first, then the metric view. Statements run one at a time so any error points at the exact one.
+# MAGIC (Fixes one generator issue on the way: it writes the metric view `source:` with backticks, which isn't valid YAML.)
 
 # COMMAND ----------
 
 def statements(path):
     sql = re.sub(r"^\s*--.*$", "", open(path).read(), flags=re.M)
+    # The metric view body is YAML, and a YAML value can't start with a backtick. The generator writes
+    # source: `catalog`.schema.view, so quote that value (needed for hyphenated catalogs like dev-sh-training).
+    sql = re.sub(r'^(\s*source:\s*)(`[^\n"]*)$', r'\1"\2"', sql, flags=re.M)
     return [s.strip() for s in re.split(r";\s*\n", sql) if s.strip()]
 
 for f in ["01_silver.sql", "03_metric_views.sql"]:
