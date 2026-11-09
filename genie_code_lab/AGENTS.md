@@ -15,6 +15,8 @@ SelectHealth readmission rate the official way.
 ## Decisions
 - Deduplicate on `enc_id`, keep the first row.
 - Drop rows where discharge is before admit, or the payer code is not 1 to 4. Log how many were dropped.
+- Keep rows with a null member id until the open question below is decided.
+- Don't drop rows for any reason not listed here, and don't treat rows as test data based on ID patterns.
 - Readmission rate is ALWAYS computed with the `readmission_rate_official` function. Do not write your own formula.
 
 ## Open questions
