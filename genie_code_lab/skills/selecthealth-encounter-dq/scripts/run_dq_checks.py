@@ -1,10 +1,12 @@
 """Reference implementation of the SelectHealth encounter DQ rules (see ../dq_rules.md).
 
-Genie Code reads this file when the selecthealth-encounter-dq skill loads and reuses the logic.
-It can also be called directly from a notebook:
+Genie Code reads this file when the selecthealth-encounter-dq skill loads, then puts this code into a
+notebook cell (so it's visible and reviewable) and calls it, for example:
 
-    exec(open("/Workspace/Users/<you>/.assistant/skills/selecthealth-encounter-dq/scripts/run_dq_checks.py").read())
-    run_dq_checks(spark, "`demo`.`selecthealth_workshop`.`kk_silver_encounters`", "`demo`.`selecthealth_workshop`.`kk_dq_results`")
+    results, certified = run_dq_checks(spark, "`dev-sh-training`.`aibi_workshop`.`kk_silver_encounters`",
+                                       "`dev-sh-training`.`aibi_workshop`.`kk_dq_results`")
+
+Don't run this file with exec(open(...).read()): approval mode blocks executing code it hasn't shown you.
 """
 from pyspark.sql import functions as F
 

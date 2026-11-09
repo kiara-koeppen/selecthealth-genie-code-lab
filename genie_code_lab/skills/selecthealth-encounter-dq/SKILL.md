@@ -14,8 +14,10 @@ invent extra checks or skip any of these, and always use the severities below.
 1. Identify the table and map its columns to the logical fields in `dq_rules.md` (the raw extract uses
    cryptic names like `enc_id`, `pyr_cd`, `adm_dt`; the silver and fact tables use full names). If a field is
    missing, report the check as `SKIPPED` rather than guessing.
-2. Run every rule in `dq_rules.md`. The reference implementation is `scripts/run_dq_checks.py`. Read it and
-   reuse its logic, adapting only the column mapping.
+2. Run every rule in `dq_rules.md`. The reference implementation is `scripts/run_dq_checks.py`. Read it, then
+   put its code **into a notebook cell** (the functions plus your call to `run_dq_checks`), adapting only the column
+   mapping, and run that cell. Do **not** run the file with `exec(open(...).read())`, `%run`, or `subprocess`:
+   code that isn't visible in the cell can't be reviewed, and approval mode blocks it.
 3. Write one row per rule to a results table named `<user initials>_dq_results` in the same schema, with exactly
    these columns: `table_name`, `check_name`, `severity`, `failed_rows`, `total_rows`, `status`, `checked_at`.
    Append, do not overwrite, so we keep history. Add a table description and column comments if you create it.
